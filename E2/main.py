@@ -11,7 +11,6 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.feature_selection import SelectKBest, f_classif # For feature importance
 
-# 1. Fetch the dataset
 print("Fetching Heart Disease Dataset...")
 heart_disease = fetch_ucirepo(id=45)
 
@@ -19,9 +18,6 @@ heart_disease = fetch_ucirepo(id=45)
 X = heart_disease.data.features
 y = heart_disease.data.targets
 
-# For the target variable, let's ensure it's binary (0 for no disease, 1 for disease)
-# The original dataset might have values 0, 1, 2, 3, 4 for 'num' (diagnosis of heart disease).
-# We'll map anything > 0 to 1 (presence of heart disease).
 y = y['num'].apply(lambda x: 1 if x > 0 else 0)
 
 print("Dataset fetched successfully.")
@@ -30,10 +26,8 @@ print(X.head())
 print("\nOriginal y head:")
 print(y.head())
 
-# 2. Preprocessing
 print("\nStarting data preprocessing...")
 
-# Check for missing values
 print("\nMissing values before handling:")
 print(X.isnull().sum())
 
@@ -53,13 +47,6 @@ print(X.isnull().sum())
 print("\nX info after missing value handling:")
 X.info()
 
-# Identify numerical and categorical features
-# We'll use the 'variable information' to guide this.
-# According to UCI metadata:
-# Numerical: age, trestbps, chol, thalach, oldpeak, (ca, thal - after converting to numeric)
-# Categorical: sex, cp, fbs, restecg, exang, slope
-# 'thal' and 'ca' can be treated as categorical or ordinal depending on interpretation.
-# For simplicity and given the typical values, we'll treat them as numerical but watch their unique values.
 
 numerical_features = ['age', 'trestbps', 'chol', 'thalach', 'oldpeak']
 categorical_features = ['sex', 'cp', 'fbs', 'restecg', 'exang', 'slope']
@@ -67,12 +54,12 @@ categorical_features = ['sex', 'cp', 'fbs', 'restecg', 'exang', 'slope']
 print("\nUnique values for 'ca':", X['ca'].unique())
 print("Unique values for 'thal':", X['thal'].unique())
 
-if X['ca'].nunique() <= 5: # Small number of unique integer values often indicates categorical/ordinal
+if X['ca'].nunique() <= 5: 
     categorical_features.append('ca')
 else:
     numerical_features.append('ca')
 
-if X['thal'].nunique() <= 5: # Small number of unique integer values often indicates categorical/ordinal
+if X['thal'].nunique() <= 5: 
     categorical_features.append('thal')
 else:
     numerical_features.append('thal')
@@ -82,9 +69,8 @@ numerical_features = list(set(numerical_features) - set(categorical_features))
 categorical_features = list(set(categorical_features) - set(numerical_features))
 
 
-# Create preprocessing pipelines for numerical and categorical features
-numerical_transformer = StandardScaler() # Scaling for numerical features
-categorical_transformer = OneHotEncoder(handle_unknown='ignore', sparse_output=False) # One-hot encoding for categorical
+numerical_transformer = StandardScaler() 
+categorical_transformer = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
 
 # Create a column transformer to apply different transformations to different columns
 preprocessor = ColumnTransformer(
@@ -92,34 +78,21 @@ preprocessor = ColumnTransformer(
         ('num', numerical_transformer, numerical_features),
         ('cat', categorical_transformer, categorical_features)
     ],
-    remainder='passthrough' # Keep other columns if any (though there shouldn't be for this dataset)
+    remainder='passthrough'
 )
 
 print(f"\nNumerical features for scaling: {numerical_features}")
 print(f"Categorical features for one-hot encoding: {categorical_features}")
 
-# 3. Feature Importance (before splitting to see raw importance, but selection happens after split)
-# We'll use a simple method like SelectKBest with f_classif to get an initial idea of importance.
-# This step is mostly for insight, not for direct feature selection before scaling/encoding.
-# Feature importance on raw data before preprocessing might be misleading for some features.
-# A more robust approach would be to calculate importance on preprocessed data or use
-# tree-based models (like RandomForest) for importance.
-# For KNN, we generally rely on scaling and don't do explicit feature selection unless performance is an issue.
 
 print("\nAssessing initial feature importance (using f_classif):")
 
-# 4. Split data into training and testing sets
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
 print(f"\nData split: Training samples = {len(X_train)}, Testing samples = {len(X_test)}")
 
-# 5. Create a pipeline for preprocessing and KNN
-# This ensures that preprocessing steps are consistently applied to both training and test data
-# and avoids data leakage.
 pipeline = Pipeline(steps=[('preprocessor', preprocessor),
                            ('classifier', KNeighborsClassifier())])
 
-# 6. Hyperparameter Tuning (Finding the best 'k') using GridSearchCV
-# We'll also consider 'weights' (uniform vs. distance) and 'metric'.
 print("\nStarting hyperparameter tuning for KNN using GridSearchCV...")
 
 param_grid = {
@@ -129,18 +102,14 @@ param_grid = {
 }
 
 grid_search = GridSearchCV(pipeline, param_grid, cv=10, scoring='accuracy', n_jobs=-1, verbose=1)
-# n_jobs=-1 uses all available CPU cores for parallel processing
-# cv=10 means 10-fold cross-validation
 
 grid_search.fit(X_train, y_train)
 
 print(f"\nBest parameters found: {grid_search.best_params_}")
 print(f"Best cross-validation accuracy: {grid_search.best_score_:.4f}")
 
-# Get the best model
 best_knn_model = grid_search.best_estimator_
 
-# 7. Evaluate the Best Model on the Test Set
 print("\nEvaluating the best KNN model on the test set...")
 y_pred = best_knn_model.predict(X_test)
 y_prob = best_knn_model.predict_proba(X_test)[:, 1] # Probabilities for ROC curve
@@ -198,14 +167,11 @@ try:
     transformed_X_train = preprocessor_fitted.transform(X_train)
     transformed_X_test = preprocessor_fitted.transform(X_test)
 
-    # Get feature names after one-hot encoding
     feature_names = numerical_features
     if 'cat' in preprocessor_fitted.named_transformers_:
         ohe_feature_names = preprocessor_fitted.named_transformers_['cat'].get_feature_names_out(categorical_features)
         feature_names.extend(ohe_feature_names)
 
-    # Re-train the best KNN classifier on the *transformed* training data
-    # (since permutation_importance expects a fitted model on transformed data)
     final_knn_classifier = grid_search.best_estimator_.named_steps['classifier']
     final_knn_classifier.fit(transformed_X_train, y_train)
 
@@ -214,7 +180,6 @@ try:
                                     n_repeats=10, random_state=42, n_jobs=-1)
     sorted_idx = result.importances_mean.argsort()
 
-    # Create a DataFrame for better visualization
     perm_importance_df = pd.DataFrame({
         'Feature': [feature_names[i] for i in sorted_idx],
         'Importance Mean': result.importances_mean[sorted_idx],
