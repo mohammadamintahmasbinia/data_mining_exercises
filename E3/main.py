@@ -95,13 +95,11 @@ print(features.groupby("Cluster")[["NumPurchases", "TotalQuantity", "TotalSpent"
 
 # from sklearn.neighbors import NearestNeighbors
 
-# # انتخاب تعداد همسایه‌ها = MinPts
 # min_pts = 5
 # neigh = NearestNeighbors(n_neighbors=min_pts)
 # nbrs = neigh.fit(X_scaled)
 # distances, indices = nbrs.kneighbors(X_scaled)
 
-# # مرتب‌سازی فاصله‌ها برای رسم نمودار k-distance
 # distances = np.sort(distances[:, min_pts-1])
 
 # plt.figure(figsize=(8,5))
